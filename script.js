@@ -14,10 +14,10 @@ function createRoom() {
     const roomName = document.getElementById('roomName').value;
     const roomPassword = document.getElementById('roomPassword').value;
     if (roomName) {
-        // Store room details in Firestore
-        firebase.firestore().collection('rooms').doc(roomName).set({
-            password: roomPassword
-        });
+        localStorage.setItem(roomName, JSON.stringify({
+            password: roomPassword,
+            messages: []
+        }));
         joinRoom(roomName);
     } else {
         alert("Please enter a room name");
@@ -28,45 +28,48 @@ function joinRoom(roomName) {
     roomName = roomName || document.getElementById('roomName').value;
     const roomPassword = document.getElementById('roomPassword').value;
 
-    firebase.firestore().collection('rooms').doc(roomName).get()
-    .then(doc => {
-        if (doc.exists) {
-            const roomData = doc.data();
-            if (roomData.password && roomData.password !== roomPassword) {
-                alert("Incorrect password for private room");
-            } else {
-                localStorage.setItem('roomName', roomName);
-                listenForMessages(roomName);
-            }
+    const roomData = JSON.parse(localStorage.getItem(roomName));
+    if (roomData) {
+        if (roomData.password && roomData.password !== roomPassword) {
+            alert("Incorrect password for private room");
         } else {
-            alert("Room does not exist");
+            localStorage.setItem('currentRoom', roomName);
+            displayMessages(roomData.messages);
         }
-    });
+    } else {
+        alert("Room does not exist");
+    }
 }
 
-function listenForMessages(roomName) {
+function displayMessages(messages) {
     const messagesDiv = document.getElementById('messages');
     messagesDiv.innerHTML = '';
-    firebase.firestore().collection('rooms').doc(roomName).collection('messages').orderBy('timestamp')
-    .onSnapshot(snapshot => {
-        snapshot.forEach(doc => {
-            const message = doc.data();
-            const messageElement = document.createElement('div');
-            messageElement.textContent = `${message.username}: ${message.text}`;
-            messagesDiv.appendChild(messageElement);
-        });
+    messages.forEach(message => {
+        const messageElement = document.createElement('div');
+        messageElement.textContent = `${message.username}: ${message.text}`;
+        messagesDiv.appendChild(messageElement);
     });
 }
 
 function sendMessage() {
     const messageInput = document.getElementById('messageInput').value;
-    const roomName = localStorage.getItem('roomName');
+    const roomName = localStorage.getItem('currentRoom');
     if (messageInput && roomName) {
-        firebase.firestore().collection('rooms').doc(roomName).collection('messages').add({
-            username: localStorage.getItem('username'),
-            text: messageInput,
-            timestamp: firebase.firestore.FieldValue.serverTimestamp()
-        });
+        const roomData = JSON.parse(localStorage.getItem(roomName));
+        const message = { username: localStorage.getItem('username'), text: messageInput };
+        roomData.messages.push(message);
+        localStorage.setItem(roomName, JSON.stringify(roomData));
+        displayMessages(roomData.messages);
         document.getElementById('messageInput').value = '';
+    }
+}
+
+window.onload = function() {
+    const currentRoom = localStorage.getItem('currentRoom');
+    if (currentRoom) {
+        const roomData = JSON.parse(localStorage.getItem(currentRoom));
+        if (roomData) {
+            displayMessages(roomData.messages);
+        }
     }
 }
